@@ -16,19 +16,30 @@ def analizza_scorte():
     try:
         response = supabase.table("emoteca_scorte").select("*").eq("stato", "Disponibile").execute()
         sacche = response.data
-        
-        critiche = []
-        for sacca in sacche:
-            if sacca.get("gruppo_sanguigno") == "0 Negativo":
-                critiche.append({
-                    "id": sacca["id"],
-                    "messaggio": "Sacca universale critica - Priorità massima di utilizzo"
-                })
-                
-        return {
-            "stato": "successo",
-            "totale_analizzate": len(sacche),
-            "sacche_critiche": critiche
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    critiche = []
+    for sacca in sacche:
+        gruppo = sacca.get("gruppo_sanguigno", "").strip()
+        
+        if gruppo == "0 Negativo":
+            critiche.append({
+                "id": sacca["id"],
+                "gruppo_sanguigno": gruppo,
+                "priorita": "Massima",
+                "messaggio": "Sacca universale critica (0 Negativo) - Priorità massima di utilizzo"
+            })
+        elif gruppo == "AB Negativo":
+            critiche.append({
+                "id": sacca["id"],
+                "gruppo_sanguigno": gruppo,
+                "priorita": "Alta",
+                "messaggio": "Gruppo raro (AB Negativo) - Monitorare scorte limitate"
+            })
+            
+    return {
+        "stato": "successo",
+        "totale_analizzate": len(sacche),
+        "sacche_critiche": critiche
+    }
