@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-import os
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -9,8 +8,8 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.get("/")
-def read_root():
-    return {"message": "Microservizio Python attivo"}
+def home():
+    return {"status": "online"}
 
 @app.get("/analizza-scorte")
 def analizza_scorte():
