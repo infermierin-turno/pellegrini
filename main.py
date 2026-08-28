@@ -1,4 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
+from pydantic import BaseModel
+from typing import Optional, Union, List
+from datetime import datetime
 from supabase import create_client, Client
 
 app = FastAPI()
@@ -43,3 +46,49 @@ def analizza_scorte():
         "totale_analizzate": len(sacche),
         "sacche_critiche": critiche
     }
+
+class BookingPayload(BaseModel):
+    reparto: Union[str, List[str]]
+    orario_invio: Optional[str] = None
+    note: Optional[str] = None
+
+@app.post("/ricevi-booking")
+def ricevi_booking(payload: BookingPayload, response: Response):
+    reparto_val = payload.reparto
+    if isinstance(reparto_val, list):
+        reparto_pulito = reparto_val[0].strip() if reparto_val else ""
+    else:
+        reparto_pulito = reparto_val.strip()
+        
+    if not reparto_pulito:
+        response.status_code = 400
+        return "Errore Dati - Campo reparto mancante"
+        
+    orario_input = payload.orario_invio if payload.orario_invio else datetime.now().strftime("%H:%M")
+    
+    try:
+        parti_ora = orario_input.split(":")
+        ora = int(parti_ora[0])
+        minuti = int(parti_ora[1])
+    except (ValueError, IndexError):
+        ora, minuti = datetime.now().hour, datetime.now().minute
+        
+    minuti_totali = (ora * 60) + minuti
+    
+    turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
+    
+    dati_da_inserire = {
+        "reparto": reparto_pulito,
+        "turno_successivo": turno_calcolato,
+        "note": payload.note if payload.note else "",
+        "stato": "Da ritirare",
+        "notifica_inviata": False
+    }
+    
+    try:
+        res = supabase.table("ritiri_sangue").insert(dati_da_inserire).execute()
+        response.status_code = 200
+        return f"OK - Turno: {turno_calcolato}"
+    except Exception as e:
+        response.status_code = 500
+        return f"Errore DB - {str(e)}"
