@@ -51,6 +51,7 @@ class BookingPayload(BaseModel):
     reparto: Union[str, List[str]]
     orario_invio: Optional[str] = None
     note: Optional[str] = None
+    urgenza: Optional[str] = "Ordinaria"  # "Ordinaria" o "Urgentissima"
 
 @app.post("/ricevi-booking")
 def ricevi_booking(payload: BookingPayload, response: Response):
@@ -75,12 +76,14 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         
     minuti_totali = (ora * 60) + minuti
     
+    # Classificazione turno/fascia
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
+    urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
     
     dati_da_inserire = {
         "reparto": reparto_pulito,
         "turno_successivo": turno_calcolato,
-        "note": payload.note if payload.note else "",
+        "note": f"[{urgenza_input}] " + (payload.note if payload.note else ""),
         "stato": "Da ritirare",
         "notifica_inviata": False
     }
@@ -88,7 +91,55 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     try:
         res = supabase.table("ritiri_sangue").insert(dati_da_inserire).execute()
         response.status_code = 200
-        return f"OK - Turno: {turno_calcolato}"
+        return {
+            "status": "OK",
+            "turno": turno_calcolato,
+            "urgenza": urgenza_input,
+            "azione_immediata": True if urgenza_input.lower() == "urgentissima" else False
+        }
     except Exception as e:
         response.status_code = 500
         return f"Errore DB - {str(e)}"
+
+@app.get("/preleva-accumulo-mattina")
+def preleva_accumulo_mattina():
+    try:
+        # Prende tutte le richieste ordinarie non ancora notificate
+        response = supabase.table("ritiri_sangue").select("*").eq("notifica_inviata", False).execute()
+        richieste = response.data
+        
+        if not richieste:
+            return {"status": "ok", "totale": 0, "richieste": []}
+            
+        ids = [r["id"] for r in richieste]
+        # Segna subito come notificate per evitare duplicati nei prossimi cicli
+        supabase.table("ritiri_sangue").update({"notifica_inviata": True}).in_("id", ids).execute()
+        
+        return {
+            "status": "ok",
+            "totale": len(richieste),
+            "richieste": richieste
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/preleva-accumulo-pomeriggio")
+def preleva_accumulo_pomeriggio():
+    try:
+        # Stessa logica per il blocco pomeridiano
+        response = supabase.table("ritiri_sangue").select("*").eq("notifica_inviata", False).execute()
+        richieste = response.data
+        
+        if not richieste:
+            return {"status": "ok", "totale": 0, "richieste": []}
+            
+        ids = [r["id"] for r in richieste]
+        supabase.table("ritiri_sangue").update({"notifica_inviata": True}).in_("id", ids).execute()
+        
+        return {
+            "status": "ok",
+            "totale": len(richieste),
+            "richieste": richieste
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
