@@ -1,3 +1,4 @@
+Python
 from fastapi import FastAPI
 from supabase import create_client, Client
 
