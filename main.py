@@ -158,6 +158,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         else False,
     }
   except Exception as e:
+    print(f"ERRORE DETTAGLIATO SUPABASE/DB: {str(e)}")
     response.status_code = 500
     return f"Errore DB - {str(e)}"
 
@@ -181,7 +182,6 @@ def preleva_accumulo_mattina():
         "id", ids
     ).execute()
 
-    # Genera tabella HTML per la mattina
     corpo_html = """
         <h2>Riepilogo Richieste Ordinarie (Mattina)</h2>
         <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
@@ -229,7 +229,6 @@ def preleva_accumulo_pomeriggio():
         "id", ids
     ).execute()
 
-    # Genera tabella HTML per il furgone delle 16:30
     corpo_html = """
         <h2>🚚 Riepilogo Richieste Pomeridiane (Furgone ore 16:30)</h2>
         <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
