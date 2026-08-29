@@ -200,7 +200,7 @@ def preleva_accumulo_pomeriggio():
         ).execute()
 
         corpo_html = """
-            <h2>🚚 Riepilogo Richieste Pomeridiane (Furgone ore 16:30)</h2>
+            <h4>🚚 Riepilogo Richieste Pomeridiane da ritirare (Furgone ore 16:30)</h4>
             <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
                 <tr style='background-color:#f2f2f2;'>
                     <th>Reparto</th>
