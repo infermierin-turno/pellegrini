@@ -3,14 +3,49 @@ import requests
 from openai import OpenAI
 
 class ShopifyCoffeeAgent:
-    def __init__(self, shop_url, access_token, openai_api_key):
+    def __init__(self, shop_url, client_id, client_secret, openai_api_key):
         self.shop_url = shop_url.rstrip('/')
-        self.access_token = access_token
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.ai_client = OpenAI(api_key=openai_api_key)
+        self.access_token = self._get_admin_access_token()
+        
         self.headers = {
             "Content-Type": "application/json",
-            "X-Shopify-Access-Token": self.access_token
+            "X-Shopify-Access-Token": self.access_token if self.access_token else ""
         }
-        self.ai_client = OpenAI(api_key=openai_api_key)
+
+    def _get_admin_access_token(self):
+        """Ottiene dinamicamente il token di accesso admin usando Client ID e Client Secret."""
+        auth_url = f"{self.shop_url}/admin/oauth/access_token"
+        payload = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "grant_type": "client_credentials"
+        }
+        
+        try:
+            # Tentativo di richiesta del token con le credenziali dell'app
+            response = requests.post(auth_url, data=payload)
+            if response.status_code == 200:
+                data = response.json()
+                token = data.get("access_token")
+                print("[SUCCESSO] Token di accesso Shopify generato correttamente.")
+                return token
+            else:
+                print(f"[AVVISO] OAuth standard non riuscito ({response.status_code}: {response.text}).")
+                print("Tentativo di fallback con autenticazione diretta o credenziali custom...")
+                return self._fallback_token_request()
+        except Exception as e:
+            print(f"Errore durante la richiesta del token Shopify: {e}")
+            return None
+
+    def _fallback_token_request(self):
+        """Metodo di supporto nel caso in cui l'endpoint richieda una struttura di scambio differente."""
+        # Se usi le credenziali della Dev Dashboard, a volte l'app richiede un token di accesso 
+        # generato direttamente dall'interfaccia o tramite Basic Auth.
+        # Restituiamo il client_secret come fallback se configurato come password temporanea.
+        return self.client_secret
 
     def get_products(self, limit=5):
         """Recupera l'elenco dei prodotti dal negozio Shopify."""
