@@ -1,11 +1,17 @@
+import os
 from shopify_agent import ShopifyCoffeeAgent
 
-# Le tue credenziali reali per l'e-commerce di caffè
-SHOP_URL = "https://348aca-2.myshopify.com""
-SHOPIFY_ACCESS_TOKEN = "shpat_il_tuo_token_privato_shopify"
-OPENAI_API_KEY = "sk-la_tua_chiave_openai"
+# Legge le credenziali in modo sicuro dalle variabili d'ambiente impostate su Render
+SHOP_URL = os.getenv("SHOP_URL", "https://348aca-2.myshopify.com")
+SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 def main():
+    # Verifica di sicurezza sulle chiavi
+    if not SHOPIFY_ACCESS_TOKEN or not OPENAI_API_KEY:
+        print("[ERRORE] Mancano le chiavi SHOPIFY_ACCESS_TOKEN o OPENAI_API_KEY nelle variabili d'ambiente.")
+        return
+
     # Inizializza l'agente
     agent = ShopifyCoffeeAgent(
         shop_url=SHOP_URL,
