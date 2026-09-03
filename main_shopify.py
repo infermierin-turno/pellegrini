@@ -1,7 +1,7 @@
 from shopify_agent import ShopifyCoffeeAgent
 
 # Le tue credenziali reali per l'e-commerce di caffè
-SHOP_URL = "https://tuo-negozio.myshopify.com"
+SHOP_URL = "https://348aca-2.myshopify.com""
 SHOPIFY_ACCESS_TOKEN = "shpat_il_tuo_token_privato_shopify"
 OPENAI_API_KEY = "sk-la_tua_chiave_openai"
 
