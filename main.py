@@ -18,8 +18,7 @@ def home():
     return {"status": "online", "message": "Shopify Coffee Agent & Hospital Backend online"}
 
 
-@app.get("/run-optimization")
-def run_optimization():
+def _esegui_script_shopify():
     try:
         result = subprocess.run(
             ["python", "main_shopify.py"], 
@@ -37,6 +36,16 @@ def run_optimization():
             status_code=500, 
             detail=f"Errore esecuzione script Shopify: {e.stderr}"
         )
+
+
+@app.get("/run-optimization")
+def run_optimization():
+    return _esegui_script_shopify()
+
+
+@app.get("/run-shopify-optimization")
+def run_shopify_optimization_alias():
+    return _esegui_script_shopify()
 
 
 @app.get("/analizza-scorte")
