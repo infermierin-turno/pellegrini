@@ -48,22 +48,23 @@ def preview_shopify_descriptions():
     html_content = """
     <html>
         <head>
-            <title>Anteprima e Ottimizzazione IA Shopify</title>
+            <title>Anteprima e Ottimizzazione SEO & IA Shopify</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; background: #f9f9f9; color: #333; }
                 .product-box { background: #fff; border: 1px solid #ddd; padding: 25px; margin-bottom: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
                 h2 { color: #b91c1c; font-size: 20px; }
                 .preview-section { display: flex; gap: 20px; margin-top: 15px; }
-                .column { flex: 1; background: #fdfdfd; border: 1px solid #eee; padding: 15px; border-radius: 6px; overflow-x: auto; max-height: 300px; }
+                .column { flex: 1; background: #fdfdfd; border: 1px solid #eee; padding: 15px; border-radius: 6px; overflow-x: auto; max-height: 250px; }
                 .column h4 { margin-top: 0; color: #555; border-bottom: 2px solid #ddd; padding-bottom: 8px; }
+                .seo-box { background: #e0f2fe; border: 1px solid #bae6fd; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 14px; }
                 .btn-container { text-align: center; margin-top: 40px; }
                 .btn-apply { background-color: #2563eb; color: white; padding: 14px 28px; font-size: 16px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
                 .btn-apply:hover { background-color: #1d4ed8; }
             </style>
         </head>
         <body>
-            <h1>Anteprima Batch Corrente (3 Prodotti)</h1>
-            <p>Verifica le descrizioni generate dall'IA. Cliccando su "Applica Modifiche", il sistema salverà le descrizioni su Shopify e applicherà il tag <strong>Ottimizzato IA</strong>, così da passare automaticamente ai prossimi tre.</p>
+            <h1>Anteprima Batch Corrente (3 Prodotti - SEO & IA)</h1>
+            <p>Verifica i meta tag e le descrizioni generate dall'IA. Cliccando su "Applica Modifiche", il sistema aggiornerà Shopify con i dati SEO completi e il tag <strong>Ottimizzato IA</strong>.</p>
             <form action="/applica-batch" method="POST">
     """
 
@@ -72,23 +73,40 @@ def preview_shopify_descriptions():
         title = product.get("title")
         current_body = product.get("body_html", "")
         
-        raw_optimized = agent.optimize_coffee_description(title, current_body)
-        cleaned_html = raw_optimized.replace("```html", "").replace("```", "").strip()
+        # Chiamata al nuovo metodo dell'agente che restituisce il dizionario con SEO e HTML
+        seo_data = agent.optimize_coffee_content(title, current_body)
+        if not seo_data:
+            seo_data = {
+                "seo_title": title,
+                "seo_description": "",
+                "body_html": current_body
+            }
 
-        # Salviamo i dati temporaneamente nel form come campi nascosti per passarli al salvataggio
+        cleaned_html = seo_data.get("body_html", "").replace("```html", "").replace("```", "").strip()
+        seo_title = seo_data.get("seo_title", "")
+        seo_desc = seo_data.get("seo_description", "")
+
         html_content += f"""
             <div class="product-box">
                 <h2>{title} (ID: {product_id})</h2>
                 <input type="hidden" name="product_ids" value="{product_id}">
                 <input type="hidden" name="product_titles" value="{title}">
+                <input type="hidden" name="seo_titles" value="{seo_title.replace('"', '&quot;')}">
+                <input type="hidden" name="seo_descriptions" value="{seo_desc.replace('"', '&quot;')}">
                 <input type="hidden" name="optimized_bodies" value="{cleaned_html.replace('"', '&quot;')}">
+                
+                <div class="seo-box">
+                    <strong>Meta Title ({len(seo_title)} caratteri):</strong> {seo_title}<br><br>
+                    <strong>Meta Description ({len(seo_desc)} caratteri):</strong> {seo_desc}
+                </div>
+
                 <div class="preview-section">
                     <div class="column">
                         <h4>Descrizione Attuale</h4>
                         <div>{current_body if current_body else '<em>Nessuna descrizione presente</em>'}</div>
                     </div>
                     <div class="column">
-                        <h4>Nuova Anteprima Generata dall'IA</h4>
+                        <h4>Nuova Anteprima HTML Generata</h4>
                         <div>{cleaned_html}</div>
                     </div>
                 </div>
@@ -97,7 +115,7 @@ def preview_shopify_descriptions():
 
     html_content += """
                 <div class="btn-container">
-                    <button type="submit" class="btn-apply">🚀 Applica Modifiche e Passa ai Successivi 3</button>
+                    <button type="submit" class="btn-apply">🚀 Applica SEO, HTML e Passa ai Successivi 3</button>
                 </div>
             </form>
         </body>
@@ -108,7 +126,13 @@ def preview_shopify_descriptions():
 
 
 @app.post("/applica-batch", response_class=HTMLResponse)
-def applica_batch(product_ids: list[str] = Form(...), product_titles: list[str] = Form(...), optimized_bodies: list[str] = Form(...)):
+def applica_batch(
+    product_ids: list[str] = Form(...), 
+    product_titles: list[str] = Form(...), 
+    seo_titles: list[str] = Form(...),
+    seo_descriptions: list[str] = Form(...),
+    optimized_bodies: list[str] = Form(...)
+):
     shop_url = os.getenv("SHOP_URL")
     client_id = os.getenv("SHOPIFY_CLIENT_ID")
     client_secret = os.getenv("SHOPIFY_CLIENT_SECRET")
@@ -133,17 +157,21 @@ def applica_batch(product_ids: list[str] = Form(...), product_titles: list[str] 
             </style>
         </head>
         <body>
-            <h1>Risultato Applicazione Batch</h1>
+            <h1>Risultato Applicazione Batch (SEO & HTML)</h1>
     """
 
-    for pid, title, new_body in zip(product_ids, product_titles, optimized_bodies):
+    for pid, title, s_title, s_desc, n_body in zip(product_ids, product_titles, seo_titles, seo_descriptions, optimized_bodies):
         try:
-            # Chiamata al metodo del tuo agent per aggiornare prodotto e aggiungere il tag 'Ottimizzato IA'
-            agent.update_product_description_and_tag(pid, new_body, tag_to_add="Ottimizzato IA")
+            seo_payload = {
+                "seo_title": s_title,
+                "seo_description": s_desc,
+                "body_html": n_body
+            }
+            agent.update_product_seo_and_description(pid, seo_payload, tag_to_add="Ottimizzato IA")
             risultati_html += f"""
                 <div class="success-box">
                     <h3 style="color: #059669; margin-top: 0;">Aggiornato con successo: {title}</h3>
-                    <p>ID Shopify: {pid} — Tag 'Ottimizzato IA' applicato correttamente.</p>
+                    <p>ID Shopify: {pid} — Meta Title, Meta Description e Tag 'Ottimizzato IA' applicati correttamente.</p>
                 </div>
             """
         except Exception as e:
@@ -155,7 +183,7 @@ def applica_batch(product_ids: list[str] = Form(...), product_titles: list[str] 
             """
 
     risultati_html += """
-            <a href="/shopify/">🔄 Torna all'anteprima per elaborare i prossimi 3 prodotti</a>
+            <a href="/">🔄 Torna all'anteprima per elaborare i prossimi 3 prodotti</a>
         </body>
     </html>
     """
