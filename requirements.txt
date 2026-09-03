@@ -5,3 +5,4 @@ openai
 python-dotenv
 requests
 pydantic
+python-multipart
