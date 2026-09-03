@@ -1,12 +1,17 @@
 from datetime import datetime
 import os
-import subprocess
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from supabase import Client, create_client
 from typing import List, Optional, Union
 
+# Importiamo l'app di Shopify dal file separato
+from main_shopify import app as shopify_app
+
 app = FastAPI()
+
+# Montiamo l'applicazione Shopify sotto il prefisso /shopify
+app.mount("/shopify", shopify_app)
 
 SUPABASE_URL = "https://ruvdlcgsmtwszxsposjt.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1dmRsY2dzbXR3c3p4c3Bvc2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNjQ4MzksImV4cCI6MjA5ODc0MDgzOX0.V_nFon6WsICyaiiN1bujrg5P9ORKb8-L1eMBlCFKZF8"
@@ -16,36 +21,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 @app.get("/")
 def home():
     return {"status": "online", "message": "Shopify Coffee Agent & Hospital Backend online"}
-
-
-def _esegui_script_shopify():
-    try:
-        result = subprocess.run(
-            ["python", "main_shopify.py"], 
-            capture_output=True, 
-            text=True, 
-            check=True
-        )
-        return {
-            "success": True, 
-            "message": "Pipeline Shopify eseguita con successo!", 
-            "output": result.stdout
-        }
-    except subprocess.CalledProcessError as e:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Errore esecuzione script Shopify: {e.stderr}"
-        )
-
-
-@app.get("/run-optimization")
-def run_optimization():
-    return _esegui_script_shopify()
-
-
-@app.get("/run-shopify-optimization")
-def run_shopify_optimization_alias():
-    return _esegui_script_shopify()
 
 
 @app.get("/analizza-scorte")
