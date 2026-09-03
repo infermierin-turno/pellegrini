@@ -1,4 +1,6 @@
 import os
+import json
+import requests
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
 from shopify_agent import ShopifyCoffeeAgent
@@ -65,7 +67,7 @@ def preview_shopify_descriptions():
         <body>
             <h1>Anteprima Batch Corrente (3 Prodotti - SEO & IA)</h1>
             <p>Verifica i meta tag e le descrizioni generate dall'IA. Cliccando su "Applica Modifiche", il sistema aggiornerà Shopify con i dati SEO completi e il tag <strong>Ottimizzato IA</strong>.</p>
-            <form action="/applica-batch" method="POST">
+            <form action="/shopify/applica-batch" method="POST">
     """
 
     for product in batch:
@@ -73,7 +75,6 @@ def preview_shopify_descriptions():
         title = product.get("title")
         current_body = product.get("body_html", "")
         
-        # Chiamata al nuovo metodo dell'agente che restituisce il dizionario con SEO e HTML
         seo_data = agent.optimize_coffee_content(title, current_body)
         if not seo_data:
             seo_data = {
@@ -183,7 +184,7 @@ def applica_batch(
             """
 
     risultati_html += """
-            <a href="/">🔄 Torna all'anteprima per elaborare i prossimi 3 prodotti</a>
+            <a href="/shopify/">🔄 Torna all'anteprima per elaborare i prossimi 3 prodotti</a>
         </body>
     </html>
     """
