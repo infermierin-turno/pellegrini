@@ -18,18 +18,15 @@ def main():
         openai_api_key=openai_api_key
     )
 
-    # 1. Recuperiamo i prodotti da elaborare (es. i primi 3)
     limit = 3
     print(f"[INFO] Recupero dei primi {limit} prodotti da Shopify per l'anteprima...")
     
-    # Usiamo il metodo nativo dell'agente per prelevare i prodotti
     products = agent.get_products(limit=limit)
     
     if not products:
         print("[AVVISO] Nessun prodotto trovato.")
         return
 
-    # 2. Mostriamo l'anteprima di cosa farà l'IA per ciascun prodotto
     for product in products:
         product_id = product.get("id")
         title = product.get("title")
@@ -38,15 +35,13 @@ def main():
         print(f"\n--- PRODOTTO SELEZIONATO ---")
         print(f"ID: {product_id}")
         print(f"Titolo: {title}")
-        print(f"Descrizione Attuale (anteprima): {current_body[:150]}...")
         
-        # Generiamo la descrizione ottimizzata tramite IA (senza salvarla ancora)
-        optimized_description = agent.generate_optimized_description(title, current_body)
+        # Generiamo la descrizione ottimizzata tramite IA usando il metodo corretto
+        optimized_description = agent.optimize_coffee_description(title, current_body)
         print(f"---> NUOVA DESCRIZIONE GENERATA DALL'IA:\n{optimized_description}\n")
 
     print("==================================================")
-    print("[MODALITÀ ANTEPRIMA COMPLETATA] Nessuna modifica è stata scritta su Shopify.")
-    print("Se i testi ti piacciono, ripristina la chiamata a agent.run_optimization_pipeline(limit=3).")
+    print("[MODALITÀ ANTEPRIMA COMPLETATA] Nessuna modifica scritta su Shopify.")
 
 if __name__ == "__main__":
     main()
