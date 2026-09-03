@@ -2,7 +2,7 @@ import os
 from shopify_agent import ShopifyCoffeeAgent
 
 agent = ShopifyCoffeeAgent(
-    shop_url=os.getenv("SHOPIFY_SHOP_URL"),
+    shop_url=os.getenv("SHOP_URL"),
     client_id=os.getenv("SHOPIFY_CLIENT_ID"),
     client_secret=os.getenv("SHOPIFY_CLIENT_SECRET"),
     openai_api_key=os.getenv("OPENAI_API_KEY")
