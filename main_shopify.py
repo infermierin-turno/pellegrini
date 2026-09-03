@@ -1,10 +1,12 @@
 import os
 from shopify_agent import ShopifyCoffeeAgent
 
-# Legge le credenziali in modo sicuro dalle variabili d'ambiente impostate su Render
-SHOP_URL = os.getenv("SHOP_URL", "https://348aca-2.myshopify.com")
-SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+agent = ShopifyCoffeeAgent(
+    shop_url=os.getenv("SHOPIFY_SHOP_URL"),
+    client_id=os.getenv("SHOPIFY_CLIENT_ID"),
+    client_secret=os.getenv("SHOPIFY_CLIENT_SECRET"),
+    openai_api_key=os.getenv("OPENAI_API_KEY")
+)
 
 def main():
     # Verifica di sicurezza sulle chiavi
