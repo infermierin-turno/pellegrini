@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Response
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from shopify_agent import ShopifyCoffeeAgent
 
@@ -42,7 +42,7 @@ def preview_shopify_descriptions():
     # Prendiamo i primi 3 da mostrare in anteprima
     batch = prodotti_da_elaborare[:3]
 
-    # Costruiamo una pagina HTML pulita per visualizzare l'anteprima visiva
+    # Costruiamo la pagina HTML con le colonne affiancate
     html_content = """
     <html>
         <head>
@@ -50,9 +50,9 @@ def preview_shopify_descriptions():
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; background: #f9f9f9; color: #333; }
                 .product-box { background: #fff; border: 1px solid #ddd; padding: 25px; margin-bottom: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-                h2 { color: #b91c1c; }
+                h2 { color: #b91c1c; font-size: 20px; }
                 .preview-section { display: flex; gap: 20px; margin-top: 15px; }
-                .column { flex: 1; background: #fdfdfd; border: 1px solid #eee; padding: 15px; border-radius: 6px; }
+                .column { flex: 1; background: #fdfdfd; border: 1px solid #eee; padding: 15px; border-radius: 6px; overflow-x: auto; }
                 .column h4 { margin-top: 0; color: #555; border-bottom: 2px solid #ddd; padding-bottom: 8px; }
             </style>
         </head>
@@ -65,10 +65,10 @@ def preview_shopify_descriptions():
         title = product.get("title")
         current_body = product.get("body_html", "")
         
-        # Genera la descrizione ottimizzata
+        # Genera la descrizione ottimizzata tramite IA
         raw_optimized = agent.optimize_coffee_description(title, current_body)
         
-        # Pulizia di eventuali blocchi ```html ... ``` restituiti per errore dall'IA
+        # Pulizia di eventuali blocchi ```html ... ``` restituiti dall'IA
         cleaned_html = raw_optimized.replace("```html", "").replace("```", "").strip()
 
         html_content += f"""
