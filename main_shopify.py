@@ -5,7 +5,7 @@ from shopify_agent import ShopifyCoffeeAgent
 
 app = FastAPI()
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def preview_shopify_descriptions():
     shop_url = os.getenv("SHOP_URL")
     client_id = os.getenv("SHOPIFY_CLIENT_ID")
@@ -13,7 +13,7 @@ def preview_shopify_descriptions():
     openai_api_key = os.getenv("OPENAI_API_KEY")
 
     if not shop_url or not client_id or not client_secret or not openai_api_key:
-        return HTMLResponse("<h3>[ERRORE] Mancano una o più variabili d'ambiente richieste.</h3>")
+        return "<h3>[ERRORE] Mancano una o più variabili d'ambiente richieste.</h3>"
 
     agent = ShopifyCoffeeAgent(
         shop_url=shop_url,
@@ -22,10 +22,9 @@ def preview_shopify_descriptions():
         openai_api_key=openai_api_key
     )
 
-    # Recuperiamo i prodotti e filtriamo quelli senza tag
     products = agent.get_products(limit=10)
     if not products:
-        return HTMLResponse("<h3>[AVVISO] Nessun prodotto trovato su Shopify.</h3>")
+        return "<h3>[AVVISO] Nessun prodotto trovato su Shopify.</h3>"
 
     tag_filtro = "Ottimizzato IA"
     prodotti_da_elaborare = []
@@ -37,12 +36,10 @@ def preview_shopify_descriptions():
             prodotti_da_elaborare.append(product)
 
     if not prodotti_da_elaborare:
-        return HTMLResponse("<h3>[AVVISO] Tutti i prodotti analizzati hanno già il tag 'Ottimizzato IA'!</h3>")
+        return "<h3>[AVVISO] Tutti i prodotti analizzati hanno già il tag 'Ottimizzato IA'!</h3>"
 
-    # Prendiamo i primi 3 da mostrare in anteprima
     batch = prodotti_da_elaborare[:3]
 
-    # Costruiamo la pagina HTML con le colonne affiancate
     html_content = """
     <html>
         <head>
@@ -65,10 +62,7 @@ def preview_shopify_descriptions():
         title = product.get("title")
         current_body = product.get("body_html", "")
         
-        # Genera la descrizione ottimizzata tramite IA
         raw_optimized = agent.optimize_coffee_description(title, current_body)
-        
-        # Pulizia di eventuali blocchi ```html ... ``` restituiti dall'IA
         cleaned_html = raw_optimized.replace("```html", "").replace("```", "").strip()
 
         html_content += f"""
@@ -92,4 +86,4 @@ def preview_shopify_descriptions():
     </html>
     """
 
-    return HTMLResponse(content=html_content)
+    return html_content
