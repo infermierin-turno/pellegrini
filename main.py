@@ -1,4 +1,6 @@
 from datetime import datetime
+import os
+import subprocess
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from supabase import Client, create_client
@@ -13,7 +15,28 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.get("/")
 def home():
-    return {"status": "online"}
+    return {"status": "online", "message": "Shopify Coffee Agent & Hospital Backend online"}
+
+
+@app.get("/run-optimization")
+def run_optimization():
+    try:
+        result = subprocess.run(
+            ["python", "main_shopify.py"], 
+            capture_output=True, 
+            text=True, 
+            check=True
+        )
+        return {
+            "success": True, 
+            "message": "Pipeline Shopify eseguita con successo!", 
+            "output": result.stdout
+        }
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Errore esecuzione script Shopify: {e.stderr}"
+        )
 
 
 @app.get("/analizza-scorte")
