@@ -40,7 +40,7 @@ class ShopifyCoffeeAgent:
             print(f"Errore durante la richiesta del token Shopify: {e}")
             return None
 
-    def get_products(self, limit=3):
+    def get_products(self, limit=20):
         """Recupera l'elenco dei prodotti dal negozio Shopify."""
         url = f"{self.shop_url}/admin/api/2024-01/products.json?limit={limit}"
         response = requests.get(url, headers=self.headers)
@@ -53,23 +53,36 @@ class ShopifyCoffeeAgent:
 
     def optimize_coffee_description(self, title, current_body):
         """Usa l'IA per trasformare la descrizione in un testo persuasivo e ottimizzato SEO."""
-        prompt = f"""
-        Sei un copywriter esperto e un sommelier del caffè. 
-        Ottimizza la seguente descrizione del prodotto per un e-commerce di caffè di alta qualità.
+        system_prompt = """
+Sei il copywriter e l'esperto ufficiale di Caffè Sansone, una torrefazione artigianale italiana. 
+La tua voce è italiana, esperta, cordiale e concreta: artigianale senza essere pomposa, precisa senza essere rigida. Aiuti chi visita lo shop a scegliere, capire e risolvere velocemente, parlando a persone che cercano caffè specialty, miscele per espresso e moka, monorigine e formati pratici. Si sente la cura da micro-torrefazione e l’attenzione per il caffè fatto bene.
+
+REGOLE TASSATIVE:
+1. Restituisci ESCLUSIVAMENTE codice HTML puro (strutturato con tag come <h2>, <p>, <ul>, <li>, <strong>, ecc.).
+2. VIETATO inserire frasi introduttive, commenti o chiacchiere (es. "Ecco la descrizione...", "Certamente!").
+3. VIETATO aggiungere i blocchi di markdown ```html o ``` attorno al codice. Restituisci solo il testo HTML grezzo e pulito, pronto per essere salvato su Shopify.
+4. Mantieni sempre tutti i dati tecnici reali del prodotto (peso, percentuali di blend, formati, compatibilità e note di spedizione) senza inventare dati non veritieri.
+"""
+
+        user_prompt = f"""
+Ottimizza la seguente descrizione del prodotto per il nostro e-commerce di caffè.
         
-        Nome Prodotto: {title}
-        Descrizione Attuale: {current_body}
+Nome Prodotto: {title}
+Descrizione Attuale: {current_body}
         
-        Requisiti:
-        - Scrivi una descrizione accattivante, incentrata sulle note aromatiche, sul profilo di tostatura e sull'esperienza di degustazione.
-        - Includi una struttura pulita con brevi punti elenco (es. Intensità, Origine, Ideale per).
-        - Restituisci il testo in formato HTML di base (es. <p>, <ul>, <li>, <strong>) pronto per essere inserito su Shopify.
-        """
+Requisiti:
+- Scrivi una descrizione accattivante, incentrata sulle note aromatiche, sul profilo di tostatura e sull'esperienza di degustazione.
+- Includi una struttura pulita con brevi punti elenco (es. Intensità, Origine, Ideale per).
+- Restituisci esclusivamente il codice HTML pulito secondo le istruzioni di sistema.
+"""
 
         try:
             response = self.ai_client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
                 temperature=0.7
             )
             return response.choices[0].message.content
@@ -77,19 +90,35 @@ class ShopifyCoffeeAgent:
             print(f"Errore durante la chiamata IA: {e}")
             return current_body
 
-    def update_product_description(self, product_id, new_body_html):
-        """Aggiorna la descrizione del prodotto su Shopify."""
-        url = f"{self.shop_url}/admin/api/2024-01/products/{product_id}.json"
+    def update_product_description_and_tag(self, product_id, new_body_html, tag_to_add="Ottimizzato IA"):
+        """Aggiorna la descrizione del prodotto su Shopify e aggiunge il tag per evitare duplicazioni."""
+        get_url = f"{self.shop_url}/admin/api/2024-01/products/{product_id}.json"
+        get_resp = requests.get(get_url, headers=self.headers)
+        
+        current_tags_str = ""
+        if get_resp.status_code == 200:
+            product_data = get_resp.json().get("product", {})
+            current_tags_str = product_data.get("tags", "")
+
+        tags_list = [t.strip() for t in current_tags_str.split(",")] if current_tags_str else []
+        if tag_to_add not in tags_list:
+            tags_list.append(tag_to_add)
+        
+        updated_tags_str = ", ".join(tags_list)
+
+        put_url = f"{self.shop_url}/admin/api/2024-01/products/{product_id}.json"
         payload = {
             "product": {
                 "id": product_id,
-                "body_html": new_body_html
+                "body_html": new_body_html,
+                "tags": updated_tags_str
             }
         }
-        response = requests.put(url, json=payload, headers=self.headers)
+        
+        response = requests.put(put_url, json=payload, headers=self.headers)
         
         if response.status_code == 200:
-            print(f"[SUCCESSO] Prodotto ID {product_id} aggiornato con successo.")
+            print(f"[SUCCESSO] Prodotto ID {product_id} aggiornato e taggato con successo.")
             return True
         else:
             print(f"[ERRORE] Impossibile aggiornare il prodotto {product_id}: {response.text}")
@@ -111,4 +140,4 @@ class ShopifyCoffeeAgent:
             
             print(f"\nElaborazione in corso per: '{title}'...")
             optimized_html = self.optimize_coffee_description(title, body_html)
-            self.update_product_description(prod_id, optimized_html)
+            self.update_product_description_and_tag(prod_id, optimized_html, tag_to_add="Ottimizzato IA")
