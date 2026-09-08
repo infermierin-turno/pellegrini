@@ -75,6 +75,8 @@ class BookingPayload(BaseModel):
 
 @app.post("/ricevi-booking")
 def ricevi_booking(payload: BookingPayload, response: Response):
+    print(f"DEBUG RICEVUTO DA POWER AUTOMATE: {payload}")
+    
     reparto_val = payload.reparto
     if isinstance(reparto_val, list):
         reparto_pulito = reparto_val[0].strip() if reparto_val else ""
@@ -112,6 +114,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
 
     try:
         res = supabase.table("ritiri_sangue").insert(dati_da_inserire).execute()
+        print(f"RISULTATO INSERIMENTO SUPABASE: {res}")
 
         response.status_code = 200
         return {
