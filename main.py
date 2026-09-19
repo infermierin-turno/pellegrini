@@ -1,8 +1,5 @@
-from datetime import datetime, time
+from datetime import datetime
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from supabase import Client, create_client
@@ -19,50 +16,6 @@ app.mount("/shopify", shopify_app)
 SUPABASE_URL = "https://ruvdlcgsmtwszxsposjt.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1dmRsY2dzbXR3c3p4c3Bvc2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNjQ4MzksImV4cCI6MjA5ODc0MDgzOX0.V_nFon6WsICyaiiN1bujrg5P9ORKb8-L1eMBlCFKZF8"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# Configurazione SMTP per Outlook 365
-SMTP_SERVER = "smtp.office365.com"
-SMTP_PORT = 587
-SMTP_USER = "udr.pellegrini@aslnapoli1centro.it"  # O la tua email Outlook mittente
-SMTP_PASSWORD = "Trasfusionale041"  # La password del tuo account Microsoft / Outlook
-
-DESTINATARI_NOTTE = [
-    "giovanni.dente@aslnapoli1centro.it",
-    "udr.pellegrini@aslnapoli1centro.it"
-]
-
-def invia_email_immediata(reparto: str, turno: str, note_testo: str):
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "🚗 Si richiede utilizzo del furgone (Richiesta Notturna Immediata)"
-        msg["From"] = SMTP_USER
-        msg["To"] = ", ".join(DESTINATARI_NOTTE)
-
-        corpo_html = f"""
-            <h4>Richiesta furgone / emocomponenti ricevuta in fascia serale/notturna (18:30 - 08:00)</h4>
-            <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
-                <tr style='background-color:#f2f2f2;'>
-                    <th>Reparto</th>
-                    <th>Turno</th>
-                    <th>Note</th>
-                </tr>
-                <tr>
-                    <td>{reparto}</td>
-                    <td>{turno}</td>
-                    <td>{note_testo}</td>
-                </tr>
-            </table>
-            <p>Cordiali saluti,<br>Sistema Gestione Servizi Esterni - Pellegrini</p>
-        """
-        msg.attach(MIMEText(corpo_html, "html"))
-
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_USER, DESTINATARI_NOTTE, msg.as_string())
-        print("Email notturna immediata inviata tramite Outlook 365 con successo.")
-    except Exception as e:
-        print(f"Errore durante l'invio dell'email con Outlook: {str(e)}")
 
 
 @app.get("/")
@@ -151,12 +104,10 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
     urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
 
-    nota_finale = f"[{urgenza_input}] " + (payload.note if payload.note else "")
-
     dati_da_inserire = {
         "reparto": reparto_pulito,
         "turno_successivo": turno_calcolato,
-        "note": nota_finale,
+        "note": f"[{urgenza_input}] " + (payload.note if payload.note else ""),
         "stato": "Da ritirare",
         "notifica_inviata": False,
     }
@@ -164,11 +115,6 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     try:
         res = supabase.table("ritiri_sangue").insert(dati_da_inserire).execute()
         print(f"RISULTATO INSERIMENTO SUPABASE: {res}")
-
-        # VERIFICA FASCIA NOTTURNA (18:30 - 08:00) PER INVIO IMMEDIATO VIA OUTLOOK
-        # 18:30 = 1110 minuti, 08:00 = 480 minuti
-        if minuti_totali >= 1110 or minuti_totali <= 480:
-            invia_email_immediata(reparto_pulito, turno_calcolato, nota_finale)
 
         response.status_code = 200
         return {
@@ -264,6 +210,59 @@ def preleva_accumulo_pomeriggio():
 
         corpo_html = """
             <h4>Si richiede utilizzo del furgone per consegna richieste pomeridiane e emocomponenti da ritirare (Furgone ore 16:30)</h4>
+            <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
+                <tr style='background-color:#f2f2f2;'>
+                    <th>Reparto</th>
+                    <th>Turno</th>
+                    <th>Note</th>
+                </tr>
+        """
+        for r in richieste:
+            corpo_html += f"""
+                <tr>
+                    <td>{r.get('reparto', '')}</td>
+                    <td>{r.get('turno_successivo', '')}</td>
+                    <td>{r.get('note', '')}</td>
+                </tr>
+            """
+        corpo_html += "</table>"
+
+        return {
+            "status": "ok",
+            "totale": len(richieste),
+            "richieste": richieste,
+            "html_riepilogo": corpo_html
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/preleva-accumulo-notte")
+def preleva_accumulo_notte():
+    try:
+        response = (
+            supabase.table("ritiri_sangue")
+            .select("*")
+            .eq("notifica_inviata", False)
+            .execute()
+        )
+        richieste = response.data
+
+        if not richieste:
+            return {
+                "status": "ok",
+                "totale": 0,
+                "richieste": [],
+                "html_riepilogo": "<p>Nessuna prenotazione registrata per la fascia serale/notturna (18:30 - 08:00).</p>"
+            }
+
+        ids = [r["id"] for r in richieste]
+        supabase.table("ritiri_sangue").update({"notifica_inviata": True}).in_(
+            "id", ids
+        ).execute()
+
+        corpo_html = """
+            <h4>Si richiede utilizzo del furgone per consegna richieste serali/notturne e emocomponenti da ritirare (Fascia 18:30 - 08:00)</h4>
             <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
                 <tr style='background-color:#f2f2f2;'>
                     <th>Reparto</th>
