@@ -239,6 +239,21 @@ def preleva_accumulo_pomeriggio():
 
 @app.get("/preleva-accumulo-notte")
 def preleva_accumulo_notte():
+    # Controllo fascia oraria: attivo solo tra le 18:30 (1110 minuti) e le 08:00 (480 minuti)
+    ora_attuale = datetime.now().hour
+    minuto_attuale = datetime.now().minute
+    minuti_totali_correnti = (ora_attuale * 60) + minuto_attuale
+    
+    siamo_di_notte = (minuti_totali_correnti >= 1110) or (minuti_totali_correnti <= 480)
+    
+    if not siamo_di_notte:
+        return {
+            "status": "ok",
+            "totale": 0,
+            "richieste": [],
+            "html_riepilogo": "<p>Fuori dalla fascia oraria notturna (18:30 - 08:00).</p>"
+        }
+
     try:
         response = (
             supabase.table("ritiri_sangue")
