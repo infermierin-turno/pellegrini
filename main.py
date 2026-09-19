@@ -276,15 +276,19 @@ def preleva_accumulo_notte():
             "id", ids
         ).execute()
 
-        corpo_html = """
-            <h4>Si richiede utilizzo del furgone per consegna richieste serali/notturne e emocomponenti da ritirare (Fascia 18:30 - 08:00)</h4>
-            <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
-                <tr style='background-color:#f2f2f2;'>
-                    <th>Reparto</th>
-                    <th>Turno</th>
-                    <th>Note</th>
-                </tr>
-        """
+        # Ottieni l'orario esatto attuale in formato HH:MM
+    orario_invio_effettivo = datetime.now().strftime("%H:%M")
+
+    corpo_html = f"""
+        <h4>Si richiede utilizzo del furgone per consegna richieste serali/notturne e emocomponenti da ritirare (Fascia 18:30 - 08:00)</h4>
+        <p><em>Notifiche elaborate e inviate alle ore: {orario_invio_effettivo}</em></p>
+        <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
+            <tr style='background-color:#f2f2f2;'>
+                <th>Reparto</th>
+                <th>Turno</th>
+                <th>Note</th>
+            </tr>
+    """
         for r in richieste:
             corpo_html += f"""
                 <tr>
