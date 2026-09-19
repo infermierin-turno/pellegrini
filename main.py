@@ -185,7 +185,7 @@ def preleva_accumulo_mattina():
 
 
 @app.get("/preleva-accumulo-pomeriggio")
-def preleva-accumulo-pomeriggio(): # (mantenuto nel nome originario)
+def preleva_accumulo_pomeriggio():
     try:
         response = (
             supabase.table("ritiri_sangue")
