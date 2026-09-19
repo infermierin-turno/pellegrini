@@ -20,15 +20,14 @@ SUPABASE_URL = "https://ruvdlcgsmtwszxsposjt.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1dmRsY2dzbXR3c3p4c3Bvc2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNjQ4MzksImV4cCI6MjA5ODc0MDgzOX0.V_nFon6WsICyaiiN1bujrg5P9ORKb8-L1eMBlCFKZF8"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Configurazione SMTP per l'invio immediato delle mail notturne (inserisci i tuoi dati reali)
-SMTP_SERVER = "smtp.gmail.com"  # Oppure il server del tuo provider
+# Configurazione SMTP per Outlook 365
+SMTP_SERVER = "smtp.office365.com"
 SMTP_PORT = 587
-SMTP_USER = "infermierinet@gmail.com"  # La tua email mittente
-SMTP_PASSWORD = "TUA_PASSWORD_O_APP_PASSWORD"  # Password o App Password
+SMTP_USER = "udr.pellegrini@aslnapoli1centro.it"  # O la tua email Outlook mittente
+SMTP_PASSWORD = "Trasfusionale041"  # La password del tuo account Microsoft / Outlook
 
 DESTINATARI_NOTTE = [
     "giovanni.dente@aslnapoli1centro.it",
-    "trasportisecondari@aslnapoli1centro.it",
     "udr.pellegrini@aslnapoli1centro.it"
 ]
 
@@ -61,9 +60,9 @@ def invia_email_immediata(reparto: str, turno: str, note_testo: str):
             server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(SMTP_USER, DESTINATARI_NOTTE, msg.as_string())
-        print("Email notturna immediata inviata con successo.")
+        print("Email notturna immediata inviata tramite Outlook 365 con successo.")
     except Exception as e:
-        print(f"Errore durante l'invio dell'email immediata: {str(e)}")
+        print(f"Errore durante l'invio dell'email con Outlook: {str(e)}")
 
 
 @app.get("/")
@@ -166,13 +165,10 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         res = supabase.table("ritiri_sangue").insert(dati_da_inserire).execute()
         print(f"RISULTATO INSERIMENTO SUPABASE: {res}")
 
-        # VERIFICA FASCIA NOTTURNA (18:30 - 08:00) PER INVIO IMMEDIATO
-        # 18:30 corrisponde a 18 * 60 + 30 = 1110 minuti
-        # 08:00 corrisponde a 8 * 60 = 480 minuti
+        # VERIFICA FASCIA NOTTURNA (18:30 - 08:00) PER INVIO IMMEDIATO VIA OUTLOOK
+        # 18:30 = 1110 minuti, 08:00 = 480 minuti
         if minuti_totali >= 1110 or minuti_totali <= 480:
             invia_email_immediata(reparto_pulito, turno_calcolato, nota_finale)
-            # Segnamo subito la notifica come inviata per questa richiesta immediata
-            # (se vuoi che non venga ripresa dai flussi di accumulo diurni)
 
         response.status_code = 200
         return {
