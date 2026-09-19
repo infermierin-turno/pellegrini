@@ -185,7 +185,7 @@ def preleva_accumulo_mattina():
 
 
 @app.get("/preleva-accumulo-pomeriggio")
-def preleva_accumulo_pomeriggio():
+def preleva-accumulo-pomeriggio(): # (mantenuto nel nome originario)
     try:
         response = (
             supabase.table("ritiri_sangue")
@@ -210,6 +210,59 @@ def preleva_accumulo_pomeriggio():
 
         corpo_html = """
             <h4>Si richiede utilizzo del furgone per consegna richieste pomeridiane e emocomponenti da ritirare (Furgone ore 16:30)</h4>
+            <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
+                <tr style='background-color:#f2f2f2;'>
+                    <th>Reparto</th>
+                    <th>Turno</th>
+                    <th>Note</th>
+                </tr>
+        """
+        for r in richieste:
+            corpo_html += f"""
+                <tr>
+                    <td>{r.get('reparto', '')}</td>
+                    <td>{r.get('turno_successivo', '')}</td>
+                    <td>{r.get('note', '')}</td>
+                </tr>
+            """
+        corpo_html += "</table>"
+
+        return {
+            "status": "ok",
+            "totale": len(richieste),
+            "richieste": richieste,
+            "html_riepilogo": corpo_html
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/preleva-accumulo-notte")
+def preleva_accumulo_notte():
+    try:
+        response = (
+            supabase.table("ritiri_sangue")
+            .select("*")
+            .eq("notifica_inviata", False)
+            .execute()
+        )
+        richieste = response.data
+
+        if not richieste:
+            return {
+                "status": "ok",
+                "totale": 0,
+                "richieste": [],
+                "html_riepilogo": "<p>Nessuna prenotazione registrata per la fascia serale/notturna (18:30 - 08:00).</p>"
+            }
+
+        ids = [r["id"] for r in richieste]
+        supabase.table("ritiri_sangue").update({"notifica_inviata": True}).in_(
+            "id", ids
+        ).execute()
+
+        corpo_html = """
+            <h4>Si richiede utilizzo del furgone per consegna richieste serali/notturne e emocomponenti da ritirare (Fascia 18:30 - 08:00)</h4>
             <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
                 <tr style='background-color:#f2f2f2;'>
                     <th>Reparto</th>
