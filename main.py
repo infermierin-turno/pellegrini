@@ -15,7 +15,7 @@ app = FastAPI()
 app.mount("/shopify", shopify_app)
 
 SUPABASE_URL = "https://ruvdlcgsmtwszxsposjt.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1dmRsY2gs... (tua chiave)"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1dmRsY2gs..."
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
@@ -239,7 +239,7 @@ def preleva_accumulo_pomeriggio():
 
 
 @app.get("/preleva-accumulo-notte")
-def preleva-accumulo-notte():
+def preleva_accumulo_notte():
     # Controllo fascia oraria rigoroso basato sul fuso orario di Roma (Italia)
     tz_italia = pytz.timezone('Europe/Rome')
     tempo_italia = datetime.now(tz_italia)
