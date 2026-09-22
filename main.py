@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from supabase import Client, create_client
 from typing import List, Optional, Union
+import pytz
 
 # Importiamo l'app di Shopify dal file separato
 from main_shopify import app as shopify_app
@@ -14,7 +15,7 @@ app = FastAPI()
 app.mount("/shopify", shopify_app)
 
 SUPABASE_URL = "https://ruvdlcgsmtwszxsposjt.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1dmRsY2dzbXR3c3p4c3Bvc2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNjQ4MzksImV4cCI6MjA5ODc0MDgzOX0.V_nFon6WsICyaiiN1bujrg5P9ORKb8-L1eMBlCFKZF8"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1dmRsY2gs... (tua chiave)"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
@@ -90,7 +91,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     orario_input = (
         payload.orario_invio
         if payload.orario_invio
-        else datetime.now().strftime("%H:%M")
+        else datetime.now(pytz.timezone('Europe/Rome')).strftime("%H:%M")
     )
 
     try:
@@ -98,7 +99,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         ora = int(parti_ora[0])
         minuti = int(parti_ora[1])
     except (ValueError, IndexError):
-        ora, minuti = datetime.now().hour, datetime.now().minute
+        ora, minuti = datetime.now(pytz.timezone('Europe/Rome')).hour, datetime.now(pytz.timezone('Europe/Rome')).minute
 
     minuti_totali = (ora * 60) + minuti
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
@@ -238,12 +239,16 @@ def preleva_accumulo_pomeriggio():
 
 
 @app.get("/preleva-accumulo-notte")
-def preleva_accumulo_notte():
-    # Controllo fascia oraria: attivo solo tra le 18:30 (1110 minuti) e le 08:00 (480 minuti)
-    ora_attuale = datetime.now().hour
-    minuto_attuale = datetime.now().minute
+def preleva-accumulo-notte():
+    # Controllo fascia oraria rigoroso basato sul fuso orario di Roma (Italia)
+    tz_italia = pytz.timezone('Europe/Rome')
+    tempo_italia = datetime.now(tz_italia)
+    
+    ora_attuale = tempo_italia.hour
+    minuto_attuale = tempo_italia.minute
     minuti_totali_correnti = (ora_attuale * 60) + minuto_attuale
     
+    # Attivo SOLO tra le 18:30 (1110 minuti) e le 08:00 (480 minuti)
     siamo_di_notte = (minuti_totali_correnti >= 1110) or (minuti_totali_correnti <= 480)
     
     if not siamo_di_notte:
@@ -251,7 +256,7 @@ def preleva_accumulo_notte():
             "status": "ok",
             "totale": 0,
             "richieste": [],
-            "html_riepilogo": "<p>Fuori dalla fascia oraria notturna (18:30 - 08:00).</p>"
+            "html_riepilogo": "<p>Fuori dalla fascia oraria consentita (18:30 - 08:00).</p>"
         }
 
     try:
@@ -276,7 +281,7 @@ def preleva_accumulo_notte():
             "id", ids
         ).execute()
 
-        orario_invio_effettivo = datetime.now().strftime("%H:%M")
+        orario_invio_effettivo = tempo_italia.strftime("%H:%M")
 
         corpo_html = f"""
             <h4>Si richiede utilizzo del furgone per consegna richieste serali/notturne e emocomponenti da ritirare (Fascia 18:30 - 08:00)</h4>
