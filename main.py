@@ -1,10 +1,10 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import os
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from supabase import Client, create_client
 from typing import List, Optional, Union
-import pytz
 
 # Importiamo l'app di Shopify dal file separato
 from main_shopify import app as shopify_app
@@ -91,7 +91,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     orario_input = (
         payload.orario_invio
         if payload.orario_invio
-        else datetime.now(pytz.timezone('Europe/Rome')).strftime("%H:%M")
+        else datetime.now(ZoneInfo('Europe/Rome')).strftime("%H:%M")
     )
 
     try:
@@ -99,7 +99,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         ora = int(parti_ora[0])
         minuti = int(parti_ora[1])
     except (ValueError, IndexError):
-        ora, minuti = datetime.now(pytz.timezone('Europe/Rome')).hour, datetime.now(pytz.timezone('Europe/Rome')).minute
+        ora, minuti = datetime.now(ZoneInfo('Europe/Rome')).hour, datetime.now(ZoneInfo('Europe/Rome')).minute
 
     minuti_totali = (ora * 60) + minuti
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
@@ -241,7 +241,7 @@ def preleva_accumulo_pomeriggio():
 @app.get("/preleva-accumulo-notte")
 def preleva_accumulo_notte():
     # Controllo fascia oraria rigoroso basato sul fuso orario di Roma (Italia)
-    tz_italia = pytz.timezone('Europe/Rome')
+    tz_italia = ZoneInfo('Europe/Rome')
     tempo_italia = datetime.now(tz_italia)
     
     ora_attuale = tempo_italia.hour
