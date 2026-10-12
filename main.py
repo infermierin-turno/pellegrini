@@ -100,26 +100,16 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         response.status_code = 400
         return "Errore Dati - Campo reparto mancante"
 
-    # Estrazione sicura e pulita dell'emoglobina dal campo dedicato o dalle note
+    # Estrazione sicura e pulita dell'emoglobina direttamente dal campo dedicato
     emo_raw = payload.emoglobina
-    emo_val = emo_raw[0] if isinstance(emo_raw, list) and emo_raw else (str(emo_raw) if emo_raw else "")
-    nota_input = payload.note or ""
-    
-    # Uniamo tutto il testo per scansionarlo alla ricerca del valore dell'emoglobina
-    testo_completo = f"{nota_input} {emo_val} {str(payload)}"
-
-    # Estrazione automatica dell'Emoglobina tramite Regex avanzata
-    emoglobina_trovata = None
-    match_emo = re.search(r'(?:emoglobina|hb|valore)[:\s]*([0-9]+([.,][0-9]+)?)', testo_completo, re.IGNORECASE)
-    if match_emo:
-        emoglobina_trovata = match_emo.group(1).replace(',', '.')
-    elif emo_val and any(char.isdigit() for char in emo_val):
-        emoglobina_trovata = emo_val.replace(',', '.')
+    if isinstance(emo_raw, list):
+        emoglobina_trovata = emo_raw[0].strip().replace(',', '.') if emo_raw else None
+    elif isinstance(emo_raw, str):
+        emoglobina_trovata = emo_raw.strip().replace(',', '.') if emo_raw else None
     else:
-        # Se non c'è l'etichetta, cerca un numero plausibile per l'emoglobina (es. tra 3.0 e 20.0)
-        numeri_possibili = re.findall(r'\b([3-9](?:\.[0-9])?|1[0-9](?:\.[0-9])?|20(?:\.0)?)\b', testo_completo)
-        if numeri_possibili:
-            emoglobina_trovata = numeri_possibili[0]
+        emoglobina_trovata = None
+
+    nota_input = payload.note or ""
 
     orario_input = (
         payload.orario_invio
@@ -138,12 +128,12 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
     urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
 
-    # Composizione pulita delle note finali con l'emoglobina estratta
+    # Composizione pulita delle note finali con l'emoglobina reale inviata
     note_finali = f"[{urgenza_input}]"
     if emoglobina_trovata:
         note_finali += f" Emoglobina: {emoglobina_trovata} g/dL -"
     
-    if nota_input and "emoglobina" not in nota_input.lower() and "hb" not in nota_input.lower():
+    if nota_input:
         note_finali += f" {nota_input}"
 
     dati_da_inserire = {
