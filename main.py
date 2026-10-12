@@ -89,18 +89,8 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     else:
         reparto_val = ""
 
-    # Estrazione sicura e pulita dell'emoglobina
-    emo_raw = payload.emoglobina
-    if isinstance(emo_raw, list):
-        emo_val = emo_raw[0].strip() if emo_raw else ""
-    elif isinstance(emo_raw, str):
-        emo_val = emo_raw.strip()
-    else:
-        emo_val = ""
-
     # FILTRO ANTIRICHIESTE-MONCHE:
-    # Se il reparto ricevuto è solo un numero (es. "10", che è l'emoglobina isolata),
-    # scartiamo la richiesta per evitare di creare una scheda errata in bacheca.
+    # Se il reparto ricevuto è solo un numero, scartiamo la richiesta.
     if reparto_val and all(c.isdigit() or c in '.,' for c in reparto_val):
         print(f"RICHIESTA SCARTATA: Il campo reparto contiene solo un valore numerico ('{reparto_val}'). Probabile chiamata sdoppiata di Bookings.")
         response.status_code = 200
@@ -110,15 +100,26 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         response.status_code = 400
         return "Errore Dati - Campo reparto mancante"
 
-    testo_completo = f"{payload.note or ''} {emo_val} {reparto_val}"
+    # Estrazione sicura e pulita dell'emoglobina dal campo dedicato o dalle note
+    emo_raw = payload.emoglobina
+    emo_val = emo_raw[0] if isinstance(emo_raw, list) and emo_raw else (str(emo_raw) if emo_raw else "")
+    nota_input = payload.note or ""
+    
+    # Uniamo tutto il testo per scansionarlo alla ricerca del valore dell'emoglobina
+    testo_completo = f"{nota_input} {emo_val} {str(payload)}"
 
-    # Estrazione automatica dell'Emoglobina tramite Regex
+    # Estrazione automatica dell'Emoglobina tramite Regex avanzata
     emoglobina_trovata = None
-    match_emo = re.search(r'(?:emoglobina|hb)[:\s]*([0-9]+([.,][0-9]+)?)', testo_completo, re.IGNORECASE)
+    match_emo = re.search(r'(?:emoglobina|hb|valore)[:\s]*([0-9]+([.,][0-9]+)?)', testo_completo, re.IGNORECASE)
     if match_emo:
         emoglobina_trovata = match_emo.group(1).replace(',', '.')
     elif emo_val and any(char.isdigit() for char in emo_val):
         emoglobina_trovata = emo_val.replace(',', '.')
+    else:
+        # Se non c'è l'etichetta, cerca un numero plausibile per l'emoglobina (es. tra 3.0 e 20.0)
+        numeri_possibili = re.findall(r'\b([3-9](?:\.[0-9])?|1[0-9](?:\.[0-9])?|20(?:\.0)?)\b', testo_completo)
+        if numeri_possibili:
+            emoglobina_trovata = numeri_possibili[0]
 
     orario_input = (
         payload.orario_invio
@@ -137,14 +138,13 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
     urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
 
-    # Composizione pulita delle note finali
+    # Composizione pulita delle note finali con l'emoglobina estratta
     note_finali = f"[{urgenza_input}]"
     if emoglobina_trovata:
         note_finali += f" Emoglobina: {emoglobina_trovata} g/dL -"
     
-    nota_pulita = payload.note or ""
-    if nota_pulita and "emoglobina" not in nota_pulita.lower():
-        note_finali += f" {nota_pulita}"
+    if nota_input and "emoglobina" not in nota_input.lower() and "hb" not in nota_input.lower():
+        note_finali += f" {nota_input}"
 
     dati_da_inserire = {
         "reparto": reparto_val,
@@ -307,46 +307,4 @@ def preleva_accumulo_notte():
         )
         richieste = response.data
 
-        if not richieste:
-            return {
-                "status": "ok",
-                "totale": 0,
-                "richieste": [],
-                "html_riepilogo": "<p>Nessuna prenotazione registrata per la fascia serale/notturna (18:30 - 08:00).</p>"
-            }
-
-        ids = [r["id"] for r in richieste]
-        supabase.table("ritiri_sangue").update({"notifica_inviata": True}).in_(
-            "id", ids
-        ).execute()
-
-        orario_invio_effettivo = tempo_italia.strftime("%H:%M")
-
-        corpo_html = f"""
-            <h4>Si richiede utilizzo del furgone per consegna richieste serali/notturne e emocomponenti da ritirare (Fascia 18:30 - 08:00)</h4>
-            <p><em>Notifiche elaborate e inviate alle ore: {orario_invio_effettivo}</em></p>
-            <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
-                <tr style='background-color:#f2f2f2;'>
-                    <th>Reparto</th>
-                    <th>Turno</th>
-                    <th>Note</th>
-                </tr>
-        """
-        for r in richieste:
-            corpo_html += f"""
-                <tr>
-                    <td>{r.get('reparto', '')}</td>
-                    <td>{r.get('turno_successivo', '')}</td>
-                    <td>{r.get('note', '')}</td>
-                </tr>
-            """
-        corpo_html += "</table>"
-
-        return {
-            "status": "ok",
-            "totale": len(richieste),
-            "richieste": richieste,
-            "html_riepilogo": corpo_html
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+_riepilogo = "<p>Nessuna prenotazione registrata per la fascia serale/notturna (18:30 - 08:00).</p>"
