@@ -307,4 +307,46 @@ def preleva_accumulo_notte():
         )
         richieste = response.data
 
-_riepilogo = "<p>Nessuna prenotazione registrata per la fascia serale/notturna (18:30 - 08:00).</p>"
+        if not richieste:
+            return {
+                "status": "ok",
+                "totale": 0,
+                "richieste": [],
+                "html_riepilogo": "<p>Nessuna prenotazione registrata per la fascia serale/notturna (18:30 - 08:00).</p>"
+            }
+
+        ids = [r["id"] for r in richieste]
+        supabase.table("ritiri_sangue").update({"notifica_inviata": True}).in_(
+            "id", ids
+        ).execute()
+
+        orario_invio_effettivo = tempo_italia.strftime("%H:%M")
+
+        corpo_html = f"""
+            <h4>Si richiede utilizzo del furgone per consegna richieste serali/notturne e emocomponenti da ritirare (Fascia 18:30 - 08:00)</h4>
+            <p><em>Notifiche elaborate e inviate alle ore: {orario_invio_effettivo}</em></p>
+            <table border='1' style='border-collapse:collapse; padding:8px; width:100%; font-family:Arial, sans-serif;'>
+                <tr style='background-color:#f2f2f2;'>
+                    <th>Reparto</th>
+                    <th>Turno</th>
+                    <th>Note</th>
+                </tr>
+        """
+        for r in richieste:
+            corpo_html += f"""
+                <tr>
+                    <td>{r.get('reparto', '')}</td>
+                    <td>{r.get('turno_successivo', '')}</td>
+                    <td>{r.get('note', '')}</td>
+                </tr>
+            """
+        corpo_html += "</table>"
+
+        return {
+            "status": "ok",
+            "totale": len(richieste),
+            "richieste": richieste,
+            "html_riepilogo": corpo_html
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
