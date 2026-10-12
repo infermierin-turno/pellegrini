@@ -1,6 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import os
+import re
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from supabase import Client, create_client
@@ -88,7 +89,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     else:
         reparto_val = ""
 
-    # Estrazione sicura e pulita dell'emoglobina
+    # Estrazione sicura e pulita dell'emoglobina dal campo o dalle note
     emo_raw = payload.emoglobina
     if isinstance(emo_raw, list):
         emo_val = emo_raw[0].strip() if emo_raw else ""
@@ -97,13 +98,25 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     else:
         emo_val = ""
 
-    # CONTROLLO INTELLIGENTE: se per errore Power Automate inverte i campi (es. reparto contiene un numero e l'emoglobina un nome)
-    # Correggiamo automaticamente al volo invertendoli!
-    if reparto_val and any(char.isdigit() for char in reparto_val) and not any(char.isdigit() for char in emo_val) and emo_val:
-        # Invertiamo se il reparto sembra un valore numerico di emoglobina e l'emoglobina sembra un nome reparto
-        temp = reparto_val
-        reparto_val = emo_val
-        emo_val = temp
+    testo_completo = f"{payload.note or ''} {emo_val} {reparto_val}"
+
+    # Estrazione automatica dell'Emoglobina tramite Regex
+    emoglobina_trovata = None
+    match_emo = re.search(r'(?:emoglobina|hb)[:\s]*([0-9]+([.,][0-9]+)?)', testo_completo, re.IGNORECASE)
+    if match_emo:
+        emoglobina_trovata = match_emo.group(1).replace(',', '.')
+    elif emo_val and any(char.isdigit() for char in emo_val):
+        # Se il campo emoglobina contiene direttamente un numero valido
+        emoglobina_trovata = emo_val.replace(',', '.')
+
+    # Se per errore il reparto ricevuto contiene solo un numero (es. l'emoglobina) e l'emoglobina era il nome del reparto, scambiamo
+    if reparto_val and all(c.isdigit() or c in '.,' for c in reparto_val):
+        if emo_val and not all(c.isdigit() or c in '.,' for c in emo_val):
+            temp = reparto_val
+            reparto_val = emo_val
+            emo_val = temp
+            if not emoglobina_trovata:
+                emoglobina_trovata = temp.replace(',', '.')
 
     if not reparto_val:
         response.status_code = 400
@@ -126,12 +139,14 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
     urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
 
-    # Composizione delle note pulita
+    # Composizione pulita delle note finali
     note_finali = f"[{urgenza_input}]"
-    if emo_val:
-        note_finali += f" Emoglobina: {emo_val} g/dL -"
-    if payload.note:
-        note_finali += f" {payload.note}"
+    if emoglobina_trovata:
+        note_finali += f" Emoglobina: {emoglobina_trovata} g/dL -"
+    
+    nota_pulita = payload.note or ""
+    if nota_pulita and "emoglobina" not in nota_pulita.lower():
+        note_finali += f" {nota_pulita}"
 
     dati_da_inserire = {
         "reparto": reparto_val,
