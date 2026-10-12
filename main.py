@@ -89,7 +89,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     else:
         reparto_val = ""
 
-    # Estrazione sicura e pulita dell'emoglobina dal campo o dalle note
+    # Estrazione sicura e pulita dell'emoglobina
     emo_raw = payload.emoglobina
     if isinstance(emo_raw, list):
         emo_val = emo_raw[0].strip() if emo_raw else ""
@@ -97,6 +97,18 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         emo_val = emo_raw.strip()
     else:
         emo_val = ""
+
+    # FILTRO ANTIRICHIESTE-MONCHE:
+    # Se il reparto ricevuto è solo un numero (es. "10", che è l'emoglobina isolata),
+    # scartiamo la richiesta per evitare di creare una scheda errata in bacheca.
+    if reparto_val and all(c.isdigit() or c in '.,' for c in reparto_val):
+        print(f"RICHIESTA SCARTATA: Il campo reparto contiene solo un valore numerico ('{reparto_val}'). Probabile chiamata sdoppiata di Bookings.")
+        response.status_code = 200
+        return {"status": "SKIPPED", "motivo": "Chiamata scartata perché il reparto non è un testo valido"}
+
+    if not reparto_val:
+        response.status_code = 400
+        return "Errore Dati - Campo reparto mancante"
 
     testo_completo = f"{payload.note or ''} {emo_val} {reparto_val}"
 
@@ -106,21 +118,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     if match_emo:
         emoglobina_trovata = match_emo.group(1).replace(',', '.')
     elif emo_val and any(char.isdigit() for char in emo_val):
-        # Se il campo emoglobina contiene direttamente un numero valido
         emoglobina_trovata = emo_val.replace(',', '.')
-
-    # Se per errore il reparto ricevuto contiene solo un numero (es. l'emoglobina) e l'emoglobina era il nome del reparto, scambiamo
-    if reparto_val and all(c.isdigit() or c in '.,' for c in reparto_val):
-        if emo_val and not all(c.isdigit() or c in '.,' for c in emo_val):
-            temp = reparto_val
-            reparto_val = emo_val
-            emo_val = temp
-            if not emoglobina_trovata:
-                emoglobina_trovata = temp.replace(',', '.')
-
-    if not reparto_val:
-        response.status_code = 400
-        return "Errore Dati - Campo reparto mancante"
 
     orario_input = (
         payload.orario_invio
