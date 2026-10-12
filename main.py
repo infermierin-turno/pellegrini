@@ -68,24 +68,44 @@ def analizza_scorte():
 
 
 class BookingPayload(BaseModel):
-    reparto: Union[str, List[str]]
+    reparto: Optional[Union[str, List[str]]] = None
     orario_invio: Optional[str] = None
     note: Optional[str] = None
     urgenza: Optional[str] = "Ordinaria"
-    emoglobina: Optional[str] = None  # <-- Nuovo campo Emoglobina aggiunto
+    emoglobina: Optional[Union[str, List[str]]] = None
 
 
 @app.post("/ricevi-booking")
 def ricevi_booking(payload: BookingPayload, response: Response):
     print(f"DEBUG RICEVUTO DA POWER AUTOMATE: {payload}")
     
-    reparto_val = payload.reparto
-    if isinstance(reparto_val, list):
-        reparto_pulito = reparto_val[0].strip() if reparto_val else ""
+    # Estrazione sicura e pulita del reparto
+    reparto_raw = payload.reparto
+    if isinstance(reparto_raw, list):
+        reparto_val = reparto_raw[0].strip() if reparto_raw else ""
+    elif isinstance(reparto_raw, str):
+        reparto_val = reparto_raw.strip()
     else:
-        reparto_pulito = reparto_val.strip()
+        reparto_val = ""
 
-    if not reparto_pulito:
+    # Estrazione sicura e pulita dell'emoglobina
+    emo_raw = payload.emoglobina
+    if isinstance(emo_raw, list):
+        emo_val = emo_raw[0].strip() if emo_raw else ""
+    elif isinstance(emo_raw, str):
+        emo_val = emo_raw.strip()
+    else:
+        emo_val = ""
+
+    # CONTROLLO INTELLIGENTE: se per errore Power Automate inverte i campi (es. reparto contiene un numero e l'emoglobina un nome)
+    # Correggiamo automaticamente al volo invertendoli!
+    if reparto_val and any(char.isdigit() for char in reparto_val) and not any(char.isdigit() for char in emo_val) and emo_val:
+        # Invertiamo se il reparto sembra un valore numerico di emoglobina e l'emoglobina sembra un nome reparto
+        temp = reparto_val
+        reparto_val = emo_val
+        emo_val = temp
+
+    if not reparto_val:
         response.status_code = 400
         return "Errore Dati - Campo reparto mancante"
 
@@ -106,15 +126,15 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
     urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
 
-    # Creazione delle note componendo l'urgenza, l'emoglobina (se presente) e le note libere
+    # Composizione delle note pulita
     note_finali = f"[{urgenza_input}]"
-    if payload.emoglobina:
-        note_finali += f" Emoglobina: {payload.emoglobina} g/dL -"
+    if emo_val:
+        note_finali += f" Emoglobina: {emo_val} g/dL -"
     if payload.note:
         note_finali += f" {payload.note}"
 
     dati_da_inserire = {
-        "reparto": reparto_pulito,
+        "reparto": reparto_val,
         "turno_successivo": turno_calcolato,
         "note": note_finali.strip(),
         "stato": "Da ritirare",
