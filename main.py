@@ -72,6 +72,7 @@ class BookingPayload(BaseModel):
     orario_invio: Optional[str] = None
     note: Optional[str] = None
     urgenza: Optional[str] = "Ordinaria"
+    emoglobina: Optional[str] = None  # <-- Nuovo campo Emoglobina aggiunto
 
 
 @app.post("/ricevi-booking")
@@ -105,10 +106,17 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
     urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
 
+    # Creazione delle note componendo l'urgenza, l'emoglobina (se presente) e le note libere
+    note_finali = f"[{urgenza_input}]"
+    if payload.emoglobina:
+        note_finali += f" Emoglobina: {payload.emoglobina} g/dL -"
+    if payload.note:
+        note_finali += f" {payload.note}"
+
     dati_da_inserire = {
         "reparto": reparto_pulito,
         "turno_successivo": turno_calcolato,
-        "note": f"[{urgenza_input}] " + (payload.note if payload.note else ""),
+        "note": note_finali.strip(),
         "stato": "Da ritirare",
         "notifica_inviata": False,
     }
@@ -240,7 +248,6 @@ def preleva_accumulo_pomeriggio():
 
 @app.get("/preleva-accumulo-notte")
 def preleva_accumulo_notte():
-    # Controllo fascia oraria rigoroso basato sul fuso orario di Roma (Italia)
     tz_italia = ZoneInfo('Europe/Rome')
     tempo_italia = datetime.now(tz_italia)
     
@@ -248,7 +255,6 @@ def preleva_accumulo_notte():
     minuto_attuale = tempo_italia.minute
     minuti_totali_correnti = (ora_attuale * 60) + minuto_attuale
     
-    # Attivo SOLO tra le 18:30 (1110 minuti) e le 08:00 (480 minuti)
     siamo_di_notte = (minuti_totali_correnti >= 1110) or (minuti_totali_correnti <= 480)
     
     if not siamo_di_notte:
