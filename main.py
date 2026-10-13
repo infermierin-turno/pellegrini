@@ -71,7 +71,7 @@ def analizza_scorte():
 class BookingPayload(BaseModel):
     reparto: Optional[Union[str, List[str]]] = None
     orario_invio: Optional[str] = None
-    note: Optional[str] = None
+    note: Optional[Any] = None
     urgenza: Optional[str] = "Ordinaria"
     emoglobina: Optional[Any] = None
 
@@ -80,7 +80,7 @@ class BookingPayload(BaseModel):
 def ricevi_booking(payload: BookingPayload, response: Response):
     print(f"DEBUG RICEVUTO DA POWER AUTOMATE: {payload}")
     
-    # Estrazione sicura e pulita del reparto
+    # 1. Estrazione sicura e pulita del reparto
     reparto_raw = payload.reparto
     if isinstance(reparto_raw, list):
         reparto_val = reparto_raw[0].strip() if reparto_raw else ""
@@ -89,10 +89,9 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     else:
         reparto_val = ""
 
-    # FILTRO ANTIRICHIESTE-MONCHE:
-    # Se il reparto ricevuto è solo un numero, scartiamo la richiesta.
+    # FILTRO ANTIRICHIESTE-MONCHE: se il reparto è solo un numero, scartiamo la chiamata sdoppiata
     if reparto_val and all(c.isdigit() or c in '.,' for c in reparto_val):
-        print(f"RICHIESTA SCARTATA: Il campo reparto contiene solo un valore numerico ('{reparto_val}'). Probabile chiamata sdoppiata di Bookings.")
+        print(f"RICHIESTA SCARTATA: Il campo reparto contiene solo un valore numerico ('{reparto_val}').")
         response.status_code = 200
         return {"status": "SKIPPED", "motivo": "Chiamata scartata perché il reparto non è un testo valido"}
 
@@ -100,29 +99,27 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         response.status_code = 400
         return "Errore Dati - Campo reparto mancante"
 
-    # Estrazione sicura e pulita dell'emoglobina (gestisce stringhe, liste, dizionari o oggetti)
-    emoglobina_trovata = None
-    emo_raw = payload.emoglobina
-    
-    if emo_raw:
-        if isinstance(emo_raw, list) and emo_raw:
-            emo_testo = str(emo_raw[0])
-        elif isinstance(emo_raw, dict):
-            emo_testo = str(emo_raw.get("Answer", emo_raw.get("risposta", emo_raw.get("value", ""))))
-        else:
-            emo_testo = str(emo_raw)
-        
-        # Puliamo ed estraiamo l'eventuale numero di emoglobina
-        match_num = re.search(r'([0-9]+([.,][0-9]+)?)', emo_testo)
-        if match_num:
-            emoglobina_trovata = match_num.group(1).replace(',', '.')
+    # 2. Raccogliamo tutto il testo possibile (note, emoglobina, payload grezzo) per un'analisi unificata
+    testo_grezzo = f"{str(payload.note or '')} {str(payload.emoglobina or '')} {str(payload)}"
 
-    # Se non è stata trovata nel campo emoglobina, proviamo a cercarla nelle note
-    nota_input = payload.note or ""
-    if not emoglobina_trovata and nota_input:
-        match_nota = re.search(r'(?:emoglobina|hb)[:\s]*([0-9]+([.,][0-9]+)?)', nota_input, re.IGNORECASE)
-        if match_nota:
-            emoglobina_trovata = match_nota.group(1).replace(',', '.')
+    # 3. Estrazione intelligente dell'emoglobina tramite Regex flessibile
+    emoglobina_trovata = None
+    
+    # Cerca pattern espliciti come "emoglobina: 11.5", "hb 12", "valore hb: 10" ecc.
+    match_emo = re.search(r'(?:emoglobina|hb|valore)[:\s]*([0-9]+([.,][0-9]+)?)', testo_grezzo, re.IGNORECASE)
+    if match_emo:
+        emoglobina_trovata = match_emo.group(1).replace(',', '.')
+    else:
+        # Se non c'è l'etichetta esplicita ma c'è un valore numerico nel campo emoglobina specifico
+        emo_raw = payload.emoglobina
+        if emo_raw:
+            emo_str = str(emo_raw[0]) if isinstance(emo_raw, list) and emo_raw else str(emo_raw)
+            match_num = re.search(r'([0-9]+([.,][0-9]+)?)', emo_str)
+            if match_num:
+                emoglobina_trovata = match_num.group(1).replace(',', '.')
+
+    # Pulizia delle note originali (escludendo eventuali duplicati di etichette)
+    nota_input = str(payload.note) if payload.note and not isinstance(payload.note, (list, dict)) else ""
 
     orario_input = (
         payload.orario_invio
@@ -141,7 +138,7 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
     urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
 
-    # Composizione pulita delle note finali con l'emoglobina reale estratta
+    # 4. Composizione pulita delle note finali
     note_finali = f"[{urgenza_input}]"
     if emoglobina_trovata:
         note_finali += f" Emoglobina: {emoglobina_trovata} g/dL -"
