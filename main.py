@@ -5,7 +5,7 @@ import re
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from supabase import Client, create_client
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Any
 
 # Importiamo l'app di Shopify dal file separato
 from main_shopify import app as shopify_app
@@ -73,7 +73,7 @@ class BookingPayload(BaseModel):
     orario_invio: Optional[str] = None
     note: Optional[str] = None
     urgenza: Optional[str] = "Ordinaria"
-    emoglobina: Optional[Union[str, List[str]]] = None
+    emoglobina: Optional[Any] = None
 
 
 @app.post("/ricevi-booking")
@@ -100,16 +100,29 @@ def ricevi_booking(payload: BookingPayload, response: Response):
         response.status_code = 400
         return "Errore Dati - Campo reparto mancante"
 
-    # Estrazione sicura e pulita dell'emoglobina direttamente dal campo dedicato
+    # Estrazione sicura e pulita dell'emoglobina (gestisce stringhe, liste, dizionari o oggetti)
+    emoglobina_trovata = None
     emo_raw = payload.emoglobina
-    if isinstance(emo_raw, list):
-        emoglobina_trovata = emo_raw[0].strip().replace(',', '.') if emo_raw else None
-    elif isinstance(emo_raw, str):
-        emoglobina_trovata = emo_raw.strip().replace(',', '.') if emo_raw else None
-    else:
-        emoglobina_trovata = None
+    
+    if emo_raw:
+        if isinstance(emo_raw, list) and emo_raw:
+            emo_testo = str(emo_raw[0])
+        elif isinstance(emo_raw, dict):
+            emo_testo = str(emo_raw.get("Answer", emo_raw.get("risposta", emo_raw.get("value", ""))))
+        else:
+            emo_testo = str(emo_raw)
+        
+        # Puliamo ed estraiamo l'eventuale numero di emoglobina
+        match_num = re.search(r'([0-9]+([.,][0-9]+)?)', emo_testo)
+        if match_num:
+            emoglobina_trovata = match_num.group(1).replace(',', '.')
 
+    # Se non è stata trovata nel campo emoglobina, proviamo a cercarla nelle note
     nota_input = payload.note or ""
+    if not emoglobina_trovata and nota_input:
+        match_nota = re.search(r'(?:emoglobina|hb)[:\s]*([0-9]+([.,][0-9]+)?)', nota_input, re.IGNORECASE)
+        if match_nota:
+            emoglobina_trovata = match_nota.group(1).replace(',', '.')
 
     orario_input = (
         payload.orario_invio
@@ -128,12 +141,12 @@ def ricevi_booking(payload: BookingPayload, response: Response):
     turno_calcolato = "Pomeriggio" if 480 <= minuti_totali <= 750 else "Notte"
     urgenza_input = payload.urgenza if payload.urgenza else "Ordinaria"
 
-    # Composizione pulita delle note finali con l'emoglobina reale inviata
+    # Composizione pulita delle note finali con l'emoglobina reale estratta
     note_finali = f"[{urgenza_input}]"
     if emoglobina_trovata:
         note_finali += f" Emoglobina: {emoglobina_trovata} g/dL -"
     
-    if nota_input:
+    if nota_input and "emoglobina" not in nota_input.lower() and "hb" not in nota_input.lower():
         note_finali += f" {nota_input}"
 
     dati_da_inserire = {
